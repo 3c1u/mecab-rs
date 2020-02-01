@@ -1,10 +1,10 @@
 #![allow(non_camel_case_types)]
 
-use std::ffi::{CStr, CString};
 use std::default::Default;
-use std::str;
-use std::ptr;
+use std::ffi::{CStr, CString};
 use std::os::raw::*;
+use std::ptr;
+use std::str;
 type size_t = usize;
 
 pub const MECAB_NOR_NODE: i32 = 0;
@@ -29,7 +29,7 @@ pub const MECAB_ANY_BOUNDARY: i32 = 0;
 pub const MECAB_TOKEN_BOUNDARY: i32 = 1;
 pub const MECAB_INSIDE_TOKEN: i32 = 2;
 
-#[link(name="mecab")]
+#[link(name = "mecab")]
 extern "C" {
     fn mecab_new2(arg: *const c_char) -> *mut c_void;
     fn mecab_version() -> *const c_char;
@@ -46,10 +46,8 @@ extern "C" {
     fn mecab_parse_lattice(mecab: *mut c_void, lattice: *mut c_void) -> c_int;
     fn mecab_sparse_tostr(mecab: *mut c_void, str: *const c_char) -> *const c_char;
     fn mecab_sparse_tonode(mecab: *mut c_void, str: *const c_char) -> *const raw_node;
-    fn mecab_nbest_sparse_tostr(mecab: *mut c_void,
-                                N: size_t,
-                                str: *const c_char)
-                                -> *const c_char;
+    fn mecab_nbest_sparse_tostr(mecab: *mut c_void, N: size_t, str: *const c_char)
+        -> *const c_char;
     fn mecab_nbest_init(mecab: *mut c_void, str: *const c_char) -> c_int;
     fn mecab_nbest_next_tostr(mecab: *mut c_void) -> *const c_char;
     fn mecab_nbest_next_tonode(mecab: *mut c_void) -> *const raw_node;
@@ -83,10 +81,12 @@ extern "C" {
     fn mecab_lattice_get_boundary_constraint(lattice: *mut c_void, pos: u64) -> c_int;
     fn mecab_lattice_get_feature_constraint(lattice: *mut c_void, pos: u64) -> *const c_char;
     fn mecab_lattice_set_boundary_constraint(lattice: *mut c_void, pos: u64, boundary_type: i32);
-    fn mecab_lattice_set_feature_constraint(lattice: *mut c_void,
-                                            begin_pos: u64,
-                                            end_pos: u64,
-                                            feature: *const c_char);
+    fn mecab_lattice_set_feature_constraint(
+        lattice: *mut c_void,
+        begin_pos: u64,
+        end_pos: u64,
+        feature: *const c_char,
+    );
     fn mecab_lattice_set_result(lattice: *mut c_void, result: *const c_char);
     fn mecab_lattice_strerror(lattice: *mut c_void) -> *const c_char;
 
@@ -96,15 +96,14 @@ extern "C" {
     fn mecab_model_new_lattice(model: *mut c_void) -> *mut c_void;
     fn mecab_model_swap(model: *mut c_void, new_model: *mut c_void) -> c_int;
     fn mecab_model_dictionary_info(model: *mut c_void) -> *const dictionary_info_t;
-    fn mecab_model_transition_cost(model: *mut c_void,
-                                   rcAttr: c_ushort,
-                                   lcAttr: c_ushort)
-                                   -> c_int;
-    fn mecab_model_lookup(model: *mut c_void,
-                          begin: *const c_char,
-                          end: *const c_char,
-                          lattice: *mut c_void)
-                          -> *const raw_node;
+    fn mecab_model_transition_cost(model: *mut c_void, rcAttr: c_ushort, lcAttr: c_ushort)
+        -> c_int;
+    fn mecab_model_lookup(
+        model: *mut c_void,
+        begin: *const c_char,
+        end: *const c_char,
+        lattice: *mut c_void,
+    ) -> *const raw_node;
 }
 
 pub fn version() -> String {
@@ -116,13 +115,64 @@ pub struct Tagger {
     input: *const i8,
 }
 
+#[derive(Debug)]
+pub struct MecabError {
+    pub message: String,
+}
+
+impl MecabError {
+    fn unknown() -> Self {
+        Self {
+            message: "unknown error".into(),
+        }
+    }
+}
+
+pub type Result<T> = std::result::Result<T, MecabError>;
+
 impl Tagger {
-    pub fn new<T: Into<Vec<u8>>>(arg: T) -> Tagger {
-        unsafe {
-            Tagger {
-                inner: mecab_new2(str_to_ptr(&CString::new(arg).unwrap())),
+    pub fn new<T: Into<Vec<u8>>>(arg: T) -> Result<Tagger> {
+        // inner is not null-safe
+        let inner = unsafe { mecab_new2(str_to_ptr(&CString::new(arg).unwrap())) };
+
+        if inner.is_null() {
+            Self::last_error(std::ptr::null_mut())?;
+            Err(MecabError::unknown())
+        } else {
+            Ok(Tagger {
+                inner,
                 input: ptr::null(),
-            }
+            })
+        }
+    }
+
+    fn last_error(inner: *mut c_void) -> Result<()> {
+        let e = unsafe { mecab_strerror(inner) };
+
+        if e.is_null() {
+            Ok(())
+        } else {
+            Err(MecabError {
+                message: ptr_to_string(e),
+            })
+        }
+    }
+
+    fn null_or_error<T>(&self, p: *const T) -> Result<*const T> {
+        if p.is_null() {
+            Self::last_error(self.inner)?;
+            Err(MecabError::unknown())
+        } else {
+            Ok(p)
+        }
+    }
+    
+    fn null_or_error_mut<T>(&self, p: *mut T) -> Result<*mut T> {
+        if p.is_null() {
+            Self::last_error(self.inner)?;
+            Err(MecabError::unknown())
+        } else {
+            Ok(p)
         }
     }
 
@@ -132,10 +182,6 @@ impl Tagger {
                 CString::from_raw(self.input as *mut i8);
             }
         }
-    }
-
-    pub fn get_last_error(&self) -> String {
-        unsafe { ptr_to_string(mecab_strerror(self.inner)) }
     }
 
     pub fn partial(&self) -> bool {
@@ -182,25 +228,31 @@ impl Tagger {
         unsafe { mecab_parse_lattice(self.inner, latice.inner) != 0 }
     }
 
-    pub fn parse_str<T: Into<Vec<u8>>>(&self, input: T) -> String {
-        unsafe {
-            ptr_to_string(mecab_sparse_tostr(self.inner, str_to_ptr(&CString::new(input).unwrap())))
-        }
+    pub fn parse_str<T: Into<Vec<u8>>>(&self, input: T) -> Result<String> {
+        Ok(unsafe {
+            ptr_to_string(self.null_or_error(mecab_sparse_tostr(
+                self.inner,
+                str_to_ptr(&CString::new(input).unwrap()),
+            ))?)
+        })
     }
 
-    pub fn parse_to_node<T: Into<Vec<u8>>>(&mut self, input: T) -> Node {
+    pub fn parse_to_node<T: Into<Vec<u8>>>(&mut self, input: T) -> Result<Node> {
         unsafe {
             self.free_input();
             self.input = str_to_heap_ptr(input);
-            Node::new(mecab_sparse_tonode(self.inner, self.input))
+            
+            Ok(Node::new(self.null_or_error(mecab_sparse_tonode(self.inner, self.input))?))
         }
     }
 
-    pub fn parse_nbest<T: Into<Vec<u8>>>(&self, n: usize, input: T) -> String {
+    pub fn parse_nbest<T: Into<Vec<u8>>>(&self, n: usize, input: T) -> Result<String> {
         unsafe {
-            ptr_to_string(mecab_nbest_sparse_tostr(self.inner,
-                                                   n,
-                                                   str_to_ptr(&CString::new(input).unwrap())))
+            Ok(ptr_to_string(self.null_or_error(mecab_nbest_sparse_tostr(
+                self.inner,
+                n,
+                str_to_ptr(&CString::new(input).unwrap()),
+            ))?))
         }
     }
 
@@ -408,15 +460,19 @@ impl Lattice {
         }
     }
 
-    pub fn set_feature_constraint<T: Into<Vec<u8>>>(&self,
-                                                    begin_pos: u64,
-                                                    end_pos: u64,
-                                                    feature: T) {
+    pub fn set_feature_constraint<T: Into<Vec<u8>>>(
+        &self,
+        begin_pos: u64,
+        end_pos: u64,
+        feature: T,
+    ) {
         unsafe {
-            mecab_lattice_set_feature_constraint(self.inner,
-                                                 begin_pos,
-                                                 end_pos,
-                                                 str_to_ptr(&CString::new(feature).unwrap()));
+            mecab_lattice_set_feature_constraint(
+                self.inner,
+                begin_pos,
+                end_pos,
+                str_to_ptr(&CString::new(feature).unwrap()),
+            );
         }
     }
 
@@ -450,7 +506,11 @@ pub struct Model {
 
 impl Model {
     pub fn new(args: &str) -> Model {
-        unsafe { Model { inner: mecab_model_new2(str_to_ptr(&CString::new(args).unwrap())) } }
+        unsafe {
+            Model {
+                inner: mecab_model_new2(str_to_ptr(&CString::new(args).unwrap())),
+            }
+        }
     }
 
     pub fn create_tagger(&self) -> Tagger {
@@ -485,10 +545,12 @@ impl Model {
 
     pub fn lookup(&self, begin: &str, len: u64, lattice: &Lattice) -> Option<Node> {
         unsafe {
-            let raw_node = mecab_model_lookup(self.inner,
-                                              str_to_heap_ptr(begin),
-                                              str_to_heap_ptr(begin).offset(len as isize),
-                                              lattice.inner);
+            let raw_node = mecab_model_lookup(
+                self.inner,
+                str_to_heap_ptr(begin),
+                str_to_heap_ptr(begin).offset(len as isize),
+                lattice.inner,
+            );
             if !raw_node.is_null() {
                 Some(Node::new(raw_node))
             } else {
@@ -740,7 +802,9 @@ impl DictionaryInfo {
     }
 
     pub fn iter(self) -> DictIter {
-        DictIter { current: Some(self) }
+        DictIter {
+            current: Some(self),
+        }
     }
 
     fn next(&self) -> Option<DictionaryInfo> {

@@ -35,20 +35,22 @@ fn main() {
             }
         }
 
-        println!("{} {} {} {} {} {} {} {} {} {} {} {} {}",
-                 node.feature,
-                 input.len() as isize - node.surface.len() as isize,
-                 input.len() as isize - node.surface.len() as isize + node.length as isize,
-                 node.rcattr,
-                 node.lcattr,
-                 node.posid,
-                 node.char_type,
-                 node.stat,
-                 node.isbest,
-                 node.alpha,
-                 node.beta,
-                 node.prob,
-                 node.cost);
+        println!(
+            "{} {} {} {} {} {} {} {} {} {} {} {} {}",
+            node.feature,
+            input.len() as isize - node.surface.len() as isize,
+            input.len() as isize - node.surface.len() as isize + node.length as isize,
+            node.rcattr,
+            node.lcattr,
+            node.posid,
+            node.char_type,
+            node.stat,
+            node.isbest,
+            node.alpha,
+            node.beta,
+            node.prob,
+            node.cost
+        );
     }
 
     // iterate over begin and end nodes
@@ -93,10 +95,12 @@ fn main() {
     println!("{}", lattice.theta());
 
     for node in lattice.bos_node().iter_next() {
-        println!("{}\t{}\t{}",
-                 &(node.surface)[..(node.length as usize)],
-                 node.feature,
-                 node.prob);
+        println!(
+            "{}\t{}\t{}",
+            &(node.surface)[..(node.length as usize)],
+            node.feature,
+            node.prob
+        );
     }
 
     // dictionary info

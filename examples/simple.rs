@@ -38,20 +38,22 @@ fn main() {
             }
         }
 
-        println!("{} {} {} {} {} {} {} {} {} {} {} {} {}",
-                 node.feature,
-                 input.len() as isize - node.surface.len() as isize,
-                 input.len() as isize - node.surface.len() as isize + node.length as isize,
-                 node.rcattr,
-                 node.lcattr,
-                 node.posid,
-                 node.char_type,
-                 node.stat,
-                 node.isbest,
-                 node.alpha,
-                 node.beta,
-                 node.prob,
-                 node.cost);
+        println!(
+            "{} {} {} {} {} {} {} {} {} {} {} {} {}",
+            node.feature,
+            input.len() as isize - node.surface.len() as isize,
+            input.len() as isize - node.surface.len() as isize + node.length as isize,
+            node.rcattr,
+            node.lcattr,
+            node.posid,
+            node.char_type,
+            node.stat,
+            node.isbest,
+            node.alpha,
+            node.beta,
+            node.prob,
+            node.cost
+        );
     }
 
     // dictionary info
