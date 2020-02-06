@@ -6,15 +6,15 @@ fn main() {
     let input = "太郎は次郎が持っている本を花子に渡した。";
     println!("INPUT: {}", input);
 
-    let mut tagger = Tagger::new("");
+    let mut tagger = Tagger::new("").unwrap();
 
     // gets tagged result as String
     let mut result = tagger.parse_str(input);
-    println!("RESULT: {}", result);
+    println!("RESULT: {}", result.unwrap());
 
     // gets N best results as String
     result = tagger.parse_nbest(3, input);
-    println!("NBEST:\n{}", result);
+    println!("NBEST:\n{}", result.unwrap());
 
     // gets N best in sequence
     tagger.parse_nbest_init(input);
@@ -25,7 +25,7 @@ fn main() {
     }
 
     // gets Node object
-    for node in tagger.parse_to_node(input).iter_next() {
+    for node in tagger.parse_to_node(input).unwrap().iter_next() {
         match node.stat as i32 {
             mecab::MECAB_BOS_NODE => {
                 print!("{} BOS ", node.id);
